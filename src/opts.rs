@@ -26,6 +26,7 @@ pub struct Options {
     pub timeout: u64,
     pub user_agent: Option<String>,
     pub no_video: bool,
+    pub resolve: Vec<[String; 2]>,
     pub target: String,
     pub no_color: bool,
     pub unwrap_noscript: bool,
@@ -88,6 +89,17 @@ impl Options {
             .args_from_usage("-u, --user-agent=[Firefox] 'Set custom User-Agent string'")
             .args_from_usage("-v, --no-video 'Remove video sources'")
             .arg(
+                Arg::default()
+                    .id("resolve")
+                    .required(false)
+                    .short('r')
+                    .long("resolve")
+                    .help("Overwrite normal dns resolution for a domain")
+                    .number_of_values(2)
+                    .value_names(&["domain", "ip"])
+                    .action(ArgAction::Append),
+            )
+            .arg(
                 Arg::with_name("target")
                     .required(true)
                     .takes_value(true)
@@ -140,6 +152,14 @@ impl Options {
         }
         options.unwrap_noscript = app.is_present("unwrap-noscript");
         options.no_video = app.is_present("no-video");
+
+        if let Some(resolve) = app.get_many::<String>("resolve") {
+            options.resolve = resolve
+                .collect::<Vec<_>>()
+                .chunks_exact(2)
+                .map(|chunk| [chunk[0].clone(), chunk[1].clone()])
+                .collect();
+        }
 
         options.no_color =
             env::var_os(ENV_VAR_NO_COLOR).is_some() || atty::isnt(atty::Stream::Stderr);

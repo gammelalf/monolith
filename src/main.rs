@@ -5,6 +5,7 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, prelude::*, Error, Write};
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::process;
 use std::time::Duration;
@@ -173,16 +174,21 @@ fn main() {
             HeaderValue::from_str(&user_agent).expect("Invalid User-Agent header specified"),
         );
     }
-    let client = if options.timeout > 0 {
-        Client::builder().timeout(Duration::from_secs(options.timeout))
-    } else {
-        // No timeout is default
-        Client::builder()
+    let mut builder = Client::builder()
+        .danger_accept_invalid_certs(options.insecure)
+        .default_headers(header_map);
+    if options.timeout > 0 {
+        builder = builder.timeout(Duration::from_secs(options.timeout));
     }
-    .danger_accept_invalid_certs(options.insecure)
-    .default_headers(header_map)
-    .build()
-    .expect("Failed to initialize HTTP client");
+    for [domain, ip] in &options.resolve {
+        if let Ok(ip) = ip.parse::<IpAddr>() {
+            builder = builder.resolve(domain, SocketAddr::new(ip, 0));
+        } else {
+            eprintln!("Invalid ip address: {ip}");
+            process::exit(1);
+        }
+    }
+    let client = builder.build().expect("Failed to initialize HTTP client");
 
     // At first we assume that base URL is the same as target URL
     let mut base_url: Url = target_url.clone();
